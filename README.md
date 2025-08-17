@@ -70,6 +70,66 @@ Visit http://localhost:3000 in your browser to access the frontend.
 - `certs/` - Contains SAML certificates
 - `*.xml` - SAML metadata files
 
+## Security Notes
+
+### Certificates
+
+**⚠️ IMPORTANT:** The certificates included in the `certs/` directory are for **demonstration purposes only**. 
+Never use these certificates in a production environment as they are publicly available in this repository.
+
+#### Generating New Certificates
+
+To generate new certificates for your implementation:
+
+1. **For Linux/MacOS users**, use the provided bash script:
+   ```bash
+   cd certs
+   chmod +x generate-certs.sh
+   ./generate-certs.sh
+   ```
+   
+2. **For Windows users**, use the PowerShell script:
+   ```powershell
+   cd certs
+   .\generate-certs.ps1
+   ```
+
+3. **Manual generation** using OpenSSL:
+   ```bash
+   # Generate private key and self-signed certificate for IdP
+   openssl req -x509 -newkey rsa:2048 -keyout idp-private-key.pem -out idp-public-cert.pem -days 365 -nodes
+   
+   # Generate private key and self-signed certificate for SP
+   openssl req -x509 -newkey rsa:2048 -keyout sp-private-key.pem -out sp-public-cert.pem -days 365 -nodes
+   ```
+
+#### Updating Metadata Files
+
+After generating new certificates, you need to update the metadata files:
+
+1. Extract the certificate content in the correct format:
+   
+   **For Linux/MacOS:**
+   ```bash
+   cd certs
+   chmod +x extract-cert-for-metadata.sh
+   ./extract-cert-for-metadata.sh idp-public-cert.pem  # For IdP
+   ./extract-cert-for-metadata.sh sp-public-cert.pem   # For SP
+   ```
+   
+   **For Windows:**
+   ```powershell
+   cd certs
+   .\extract-cert-for-metadata.ps1 idp-public-cert.pem  # For IdP
+   .\extract-cert-for-metadata.ps1 sp-public-cert.pem   # For SP
+   ```
+
+2. Replace the certificate data in the metadata files:
+   - Update the `X509Certificate` element in `idp-metadata.xml` with the extracted content from `idp-public-cert.pem`
+   - Update the `X509Certificate` element in `sp-metadata.xml` with the extracted content from `sp-public-cert.pem`
+
+For production deployments, consider using certificates issued by a trusted Certificate Authority.
+
 ## License
 
 MIT
