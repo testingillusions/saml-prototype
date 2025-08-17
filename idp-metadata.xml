@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://localhost:7000">
+    <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <KeyDescriptor use="signing">
+            <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+                <X509Data>
+                    <X509Certificate>
+                        MIICvDCCAaQCCQD6E8ZGsQ2usjANBgkqhkiG9w0BAQsFADAgMR4wHAYDVQQDDBVt
+                        eXNlcnZpY2UuZXhhbXBsZS5jb20wHhcNMjIwMjE3MTQwNjM5WhcNMjMwMjE3MTQw
+                        NjM5WjAgMR4wHAYDVQQDDBVteXNlcnZpY2UuZXhhbXBsZS5jb20wggEiMA0GCSqG
+                        SIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7XKdCRxUZXjdPFnGUFZN4eiC0ynd3MVq7
+                        8y/jJbAh82QP8tUpLsMf4YoVB6iGKEQh5GpLGwwwZgKHYPzdBXc8gDUdWvQFdqTl
+                        1lEFxwDHlEsqTDuEcgQNtXNE9YE0fCrZBj9Wd4c9GhHEfvCpBTO1LqCRi9+nZ7PU
+                        vnJ8do4CQIYzqoEA8oJxwJ2FOpbmGrsCPwP9tO9mXR6QQvELlJLkfUQrM2Z6nSOj
+                        4JMqHXqUZPt+TxORXHYYLFwI8+LS5lNK3qOFS5C8PhEX4Uzp5XuVS+/qHQXLGYFZ
+                        yWYbwtQEJshkqFvLUJlvOQWC8UJ7NUpKs3dOqN4ZgHmKhT4TAgMBAAEwDQYJKoZI
+                        hvcNAQELBQADggEBAJYxROWSOZbOzXzafdGjQKsMgN948G/hHwVuZneyAcVoLMFe
+                        SXrhMyviXXhMDctSeyXUWwY+62fSgM7/SykDwYSB1lcRIYFMUHyrV1HkTjI4zvtP
+                        HQNgM+SqVpXWYJXsNpGAIg+rG7cvBZJbJA/mF3lh3eZ6hjqsQl8Vdd4CKxs7QDLd
+                        1h4ZtchZRK6+3rGQR9c+kK6d7IUYkMGi5FnEqauhqzHJryJjD7IBTpqhEkpZ/Px8
+                        RJCpS2wNe/mvqMAEQWsISICJG7VxoKmU+1jqzwSpZHlRxCPAhYjpcIhu0vQvx9/f
+                        ZZK2H1y/1V0YcivVsnKyYwJRkAGIkJkwggE=
+                    </X509Certificate>
+                </X509Data>
+            </KeyInfo>
+        </KeyDescriptor>
+        <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                           Location="http://localhost:7000/login"/>
+        <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                           Location="http://localhost:7000/login"/>
+    </IDPSSODescriptor>
+</EntityDescriptor>

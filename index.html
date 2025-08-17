@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SAML Frontend Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #333;
+        }
+        button, a.button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover, a.button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .user-info {
+            margin-top: 20px;
+            padding: 10px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        .error {
+            color: red;
+            margin-top: 20px;
+            padding: 10px;
+            border-left: 4px solid red;
+            background-color: #fff0f0;
+            display: none;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SAML Authentication Frontend</h1>
+        
+        <div id="login-section">
+            <p>Welcome to the SAML demo application. Click the button below to authenticate using SAML.</p>
+            <a href="http://localhost:4000/login" class="button">Login with SAML</a>
+        </div>
+        
+        <div id="user-info" class="user-info">
+            <h2>Authentication Successful</h2>
+            <p>Welcome <span id="user-name">User</span>!</p>
+            <h3>User Details:</h3>
+            <pre id="user-details"></pre>
+            <button id="logout-button">Logout</button>
+        </div>
+        
+        <div id="error-message" class="error">
+            <h3>Authentication Error</h3>
+            <p id="error-details"></p>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Parse query parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const user = urlParams.get('user');
+            const token = urlParams.get('token');
+            const error = urlParams.get('error');
+            const authenticated = urlParams.get('authenticated');
+            
+            // Handle successful authentication
+            if (authenticated === 'true' && user) {
+                try {
+                    // Parse the user data
+                    const userData = JSON.parse(decodeURIComponent(user));
+                    
+                    // Store in session storage for persistence
+                    sessionStorage.setItem('samlUser', JSON.stringify(userData));
+                    if (token) {
+                        sessionStorage.setItem('samlToken', token);
+                    }
+                    
+                    // Show user info and hide login section
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('user-info').style.display = 'block';
+                    
+                    // Update user display name
+                    const firstName = userData.attributes?.firstName || '';
+                    const lastName = userData.attributes?.lastName || '';
+                    const displayName = firstName || lastName ? `${firstName} ${lastName}`.trim() : userData.nameID || 'User';
+                    document.getElementById('user-name').textContent = displayName;
+                    
+                    // Show all user details
+                    document.getElementById('user-details').textContent = JSON.stringify(userData, null, 2);
+                    
+                    // Clean URL for security (remove sensitive data from URL)
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (err) {
+                    console.error('Error parsing user data:', err);
+                    document.getElementById('error-details').textContent = 'Failed to parse user data from authentication response.';
+                    document.getElementById('error-message').style.display = 'block';
+                }
+            } 
+            // Handle authentication errors
+            else if (error) {
+                document.getElementById('error-details').textContent = decodeURIComponent(error);
+                document.getElementById('error-message').style.display = 'block';
+            } 
+            // Check for existing session
+            else {
+                const savedUser = sessionStorage.getItem('samlUser');
+                if (savedUser) {
+                    try {
+                        const userData = JSON.parse(savedUser);
+                        
+                        // Show user info and hide login section
+                        document.getElementById('login-section').style.display = 'none';
+                        document.getElementById('user-info').style.display = 'block';
+                        
+                        // Update user display name
+                        const firstName = userData.attributes?.firstName || '';
+                        const lastName = userData.attributes?.lastName || '';
+                        const displayName = firstName || lastName ? `${firstName} ${lastName}`.trim() : userData.nameID || 'User';
+                        document.getElementById('user-name').textContent = displayName;
+                        
+                        // Show all user details
+                        document.getElementById('user-details').textContent = JSON.stringify(userData, null, 2);
+                    } catch (err) {
+                        console.error('Error loading saved session:', err);
+                        sessionStorage.removeItem('samlUser');
+                        sessionStorage.removeItem('samlToken');
+                    }
+                }
+            }
+            
+            // Logout functionality
+            document.getElementById('logout-button').addEventListener('click', function() {
+                // Clear session data
+                sessionStorage.removeItem('samlUser');
+                sessionStorage.removeItem('samlToken');
+                
+                // Reset UI
+                document.getElementById('login-section').style.display = 'block';
+                document.getElementById('user-info').style.display = 'none';
+                document.getElementById('error-message').style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
