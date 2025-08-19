@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { ServiceProvider, IdentityProvider } = require('samlify');
 const fs = require('fs');
@@ -6,6 +7,20 @@ const zlib = require('zlib');
 const { v4: uuidv4 } = require('uuid');
 const xmldom = require('@xmldom/xmldom');
 const xpath = require('xpath');
+
+// Environment variables
+const IDP_PORT = process.env.IDP_PORT || 7000;
+const IDP_BASE_URL = process.env.IDP_BASE_URL || `http://localhost:${IDP_PORT}`;
+const IDP_LOGIN_URL = process.env.IDP_LOGIN_URL || `${IDP_BASE_URL}/login`;
+
+// Service Providers Configuration
+const SERVICE_PROVIDERS = JSON.parse(process.env.SERVICE_PROVIDERS || '[{"entityId": "http://localhost:4000", "callbackUrl": "http://localhost:4000/callback", "metadataPath": "./sp-metadata.xml", "privateKeyPath": "./certs/sp-private-key.pem", "publicCertPath": "./certs/sp-public-cert.pem"}]');
+
+// Create a map for quick SP lookup by entity ID
+const spMap = new Map();
+SERVICE_PROVIDERS.forEach(sp => {
+  spMap.set(sp.entityId, sp);
+});
 
 // Configure schema validation - this is important for samlify to work properly
 ServiceProvider.prototype.validateLoginRequest = function() { return Promise.resolve(); };
@@ -18,25 +33,106 @@ app.use(cors());
 
 // Configure IdP
 const idp = IdentityProvider({
-  metadata: fs.readFileSync('./idp-metadata.xml', 'utf-8'),
-  privateKey: fs.readFileSync('./certs/idp-private-key.pem', 'utf-8'),
-  cert: fs.readFileSync('./certs/idp-public-cert.pem', 'utf-8'),
+  metadata: fs.readFileSync(process.env.IDP_METADATA_PATH || './idp-metadata.xml', 'utf-8'),
+  privateKey: fs.readFileSync(process.env.IDP_PRIVATE_KEY_PATH || './certs/idp-private-key.pem', 'utf-8'),
+  cert: fs.readFileSync(process.env.IDP_PUBLIC_CERT_PATH || './certs/idp-public-cert.pem', 'utf-8'),
   isAssertionEncrypted: false,
   messageSigningOrder: 'sign-then-encrypt'
 });
 
-// Configure SP
-const sp = ServiceProvider({
-  metadata: fs.readFileSync('./sp-metadata.xml', 'utf-8'),
-  isAssertionEncrypted: false,
-  wantMessageSigned: false,
-  wantAssertionsSigned: false
+// Configure Service Providers - create SP instances for each configured SP
+const spInstances = new Map();
+SERVICE_PROVIDERS.forEach(spConfig => {
+  try {
+    const sp = ServiceProvider({
+      metadata: fs.readFileSync(spConfig.metadataPath, 'utf-8'),
+      isAssertionEncrypted: false,
+      wantMessageSigned: false,
+      wantAssertionsSigned: false
+    });
+    spInstances.set(spConfig.entityId, { sp, config: spConfig });
+    console.log(`Configured SP: ${spConfig.entityId}`);
+  } catch (err) {
+    console.warn(`Failed to configure SP ${spConfig.entityId}:`, err.message);
+  }
 });
+
+// Function to parse SAML request and extract issuer
+function parseSAMLRequest(samlRequest) {
+  try {
+    let decoded;
+    
+    console.log('Parsing SAML Request (truncated):', samlRequest.substring(0, 50) + '...');
+    
+    // First try: decode as base64 and inflate (for Redirect binding)
+    try {
+      const buffer = Buffer.from(samlRequest, 'base64');
+      decoded = zlib.inflateRawSync(buffer).toString('utf-8');
+      console.log('Successfully decoded as deflated/base64');
+    } catch (inflateErr) {
+      console.log('Inflate failed, trying direct base64 decode...');
+      // Second try: direct base64 decode (for POST binding)
+      try {
+        decoded = Buffer.from(samlRequest, 'base64').toString('utf-8');
+        console.log('Successfully decoded as direct base64');
+      } catch (base64Err) {
+        console.log('Base64 decode failed, trying as plain text...');
+        // Third try: assume it's already decoded
+        decoded = samlRequest;
+      }
+    }
+    
+    console.log('Decoded SAML Request (first 200 chars):', decoded.substring(0, 200));
+    
+    // Parse XML
+    const DOMParser = new xmldom.DOMParser();
+    const doc = DOMParser.parseFromString(decoded, 'text/xml');
+    
+    // Check if parsing was successful
+    if (!doc || !doc.documentElement) {
+      throw new Error('Failed to parse XML - no document element');
+    }
+    
+    // Extract issuer using xpath
+    const select = xpath.useNamespaces({
+      samlp: 'urn:oasis:names:tc:SAML:2.0:protocol',
+      saml: 'urn:oasis:names:tc:SAML:2.0:assertion'
+    });
+    
+    const issuerNode = select('//saml:Issuer/text()', doc)[0];
+    const issuer = issuerNode ? issuerNode.nodeValue : null;
+    
+    const requestIdNode = select('//@ID', doc)[0];
+    const requestId = requestIdNode ? requestIdNode.value : null;
+    
+    console.log(`Parsed SAML Request - Issuer: ${issuer}, RequestID: ${requestId}`);
+    
+    return { issuer, requestId, decoded };
+  } catch (err) {
+    console.error('Error parsing SAML request:', err);
+    console.error('SAML Request (raw):', samlRequest);
+    return null;
+  }
+}
 
 // Serve IdP metadata
 app.get('/metadata', (req, res) => {
   res.type('application/xml');
   res.send(idp.getMetadata());
+});
+
+// List configured Service Providers
+app.get('/sps', (req, res) => {
+  const spList = SERVICE_PROVIDERS.map(sp => ({
+    entityId: sp.entityId,
+    callbackUrl: sp.callbackUrl,
+    configured: spInstances.has(sp.entityId)
+  }));
+  
+  res.json({
+    count: spList.length,
+    serviceProviders: spList
+  });
 });
 
 // Login form
@@ -45,6 +141,16 @@ app.get('/login', (req, res) => {
   const RelayState = req.query.RelayState;
   
   console.log('Received GET login request with SAMLRequest:', SAMLRequest ? 'present' : 'missing');
+  
+  // If this is a SAML request, try to parse it to get SP info for customized login page
+  let requestingSP = null;
+  if (SAMLRequest) {
+    const parsedRequest = parseSAMLRequest(SAMLRequest);
+    if (parsedRequest && parsedRequest.issuer) {
+      requestingSP = parsedRequest.issuer;
+      console.log(`Login page requested by SP: ${requestingSP}`);
+    }
+  }
   
   res.send(`
     <!DOCTYPE html>
@@ -187,6 +293,7 @@ app.get('/login', (req, res) => {
                     <rect x="45" y="26" width="30" height="4" fill="#333"/>
                 </svg>
                 <h1>Internal Simulated single sign-on</h1>
+                ${requestingSP ? `<p style="color: #666; font-size: 14px;">Requested by: ${requestingSP}</p>` : ''}
                 
                 <form method="post" action="/login">
                     <input type="hidden" name="SAMLRequest" value="${SAMLRequest || ''}" />
@@ -239,37 +346,83 @@ app.post('/login', async (req, res) => {
     });
 
     // Verify credentials (in production, you would check against a database)
-    if (email !== 'user@example.com' || password !== 'password123') {
-      return res.status(401).send('Invalid credentials');
-    }
-
     if (!SAMLRequest) {
       return res.status(400).send('No SAML request found');
     }
+
+    // Declare userProfile outside the blocks so it's accessible later
+    let userProfile;
     
-    // Create a minimal user profile
-    const userProfile = {
-      id: 'user123',
-      email: email,
-      firstName: 'Test',
-      lastName: 'User',
-      attributes: {
+    // Verify credentials and set user profile
+    if (email === 'user2@example.com' && password === 'password123') {
+      userProfile = {
+        id: 'user456',
+        email: email,
+        firstName: 'Test2',
+        lastName: 'User2',
+        attributes: {
+          email: email,
+          firstName: 'Test2',
+          lastName: 'User2',
+          displayName: 'Test2 User2',
+          role: 'user'
+        }
+      };
+    } else if (email === 'user@example.com' && password === 'password123') {
+      userProfile = {
+        id: 'user123',
         email: email,
         firstName: 'Test',
         lastName: 'User',
-        displayName: 'Test User',
-        role: 'user'
-      }
-    };
+        attributes: {
+          email: email,
+          firstName: 'Test',
+          lastName: 'User',
+          displayName: 'Test User',
+          role: 'user'
+        }
+      };
+    } else if (email === 'admin@example.com' && password === 'password123') {
+      userProfile = {
+        id: 'admin123',
+        email: email,
+        firstName: 'Admin',
+        lastName: 'User',
+        attributes: {
+          email: email,
+          firstName: 'Admin',
+          lastName: 'User',
+          displayName: 'Admin User',
+          role: 'admin'
+        }
+      };
+    } else {
+      return res.status(401).send('Invalid credentials');
+    }
+
 
     try {
-      // Extract SAML request parameters
-      // In a real application, you would decode and validate the SAML request
+      // Parse the SAML request to identify the requesting SP
+      const parsedRequest = parseSAMLRequest(SAMLRequest);
+      if (!parsedRequest || !parsedRequest.issuer) {
+        return res.status(400).send('Invalid SAML request - could not determine issuer');
+      }
+      
+      // Find the SP configuration for this issuer
+      const spData = spInstances.get(parsedRequest.issuer);
+      if (!spData) {
+        return res.status(400).send(`Unknown Service Provider: ${parsedRequest.issuer}`);
+      }
+      
+      console.log(`Processing login for SP: ${parsedRequest.issuer}`);
+      
+      // Extract SAML request parameters for this specific SP
       const requestParams = {
         id: '_' + uuidv4(),
-        assertionConsumerServiceUrl: 'http://localhost:4000/callback',
-        destination: 'http://localhost:7000/login',
-        issuer: 'http://localhost:4000'
+        assertionConsumerServiceUrl: spData.config.callbackUrl,
+        destination: IDP_LOGIN_URL,
+        issuer: parsedRequest.issuer,
+        inResponseTo: parsedRequest.requestId
       };
       
       // Create SAML response directly
@@ -289,8 +442,9 @@ app.post('/login', async (req, res) => {
                ID="${responseID}" 
                Version="2.0" 
                IssueInstant="${issueInstant}" 
-               Destination="http://localhost:4000/callback">
-  <saml:Issuer>http://localhost:7000</saml:Issuer>
+               Destination="${requestParams.assertionConsumerServiceUrl}"
+               ${requestParams.inResponseTo ? `InResponseTo="${requestParams.inResponseTo}"` : ''}>
+  <saml:Issuer>${IDP_BASE_URL}</saml:Issuer>
   <samlp:Status>
     <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
   </samlp:Status>
@@ -299,17 +453,17 @@ app.post('/login', async (req, res) => {
                  ID="${assertionID}" 
                  Version="2.0" 
                  IssueInstant="${issueInstant}">
-    <saml:Issuer>http://localhost:7000</saml:Issuer>
+    <saml:Issuer>${IDP_BASE_URL}</saml:Issuer>
     <saml:Subject>
       <saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${email}</saml:NameID>
       <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
         <saml:SubjectConfirmationData NotOnOrAfter="${notOnOrAfter}" 
-                                     Recipient="http://localhost:4000/callback"/>
+                                     Recipient="${requestParams.assertionConsumerServiceUrl}"/>
       </saml:SubjectConfirmation>
     </saml:Subject>
     <saml:Conditions NotBefore="${issueInstant}" NotOnOrAfter="${notOnOrAfter}">
       <saml:AudienceRestriction>
-        <saml:Audience>http://localhost:4000</saml:Audience>
+        <saml:Audience>${requestParams.issuer}</saml:Audience>
       </saml:AudienceRestriction>
     </saml:Conditions>
     <saml:AuthnStatement AuthnInstant="${issueInstant}" SessionNotOnOrAfter="${notOnOrAfter}">
@@ -339,7 +493,7 @@ app.post('/login', async (req, res) => {
       
       // Send auto-submitting form
       res.send(`
-        <form method="post" action="http://localhost:4000/callback" id="samlform">
+        <form method="post" action="${requestParams.assertionConsumerServiceUrl}" id="samlform">
           <input type="hidden" name="SAMLResponse" value="${samlResponse}" />
           <input type="hidden" name="RelayState" value="${RelayState || ''}" />
         </form>
@@ -355,6 +509,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.listen(7000, () => {
-  console.log('IdP server running at http://localhost:7000');
+app.listen(IDP_PORT, () => {
+  console.log(`IdP server running at ${IDP_BASE_URL}`);
 });

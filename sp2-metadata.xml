@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://localhost:10000">
+  <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <X509Data>
+          <X509Certificate>
+            MIIDCTCCAfGgAwIBAgIUDHcXfXaqExPI9Rsk9qwQlcoV3CowDQYJKoZIhvcNAQELBQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI1MDgxODE3NDQzOVoXDTI2MDgxODE3NDQzOVowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtuA6HlVNuU1pkl0N8v5WKEKRtfe/f/42rq/DhZzmiteWaB2ZXroUKVZkjBYKa4lPzaCmDQKstTirivMAJjgpedhp6KYPRqvcTGZOLwIbNjv9H1qgsb7vdx+apB7BbxRpT4FDPycCJUUW6no2bJx6x+7ZthYxjEbom5brt6uwcr441pSqxdGUfsfbEAj+eU/z/8Z0rEwTRIvgRayrHG0/w1wLLe6m3GbSW0ujIYaqWmYiHN9ZhCPbZJGHp/93gO8vxf3UVIPp9GuYzSGiGBx4LaslbirO5d/Q3ltXqO2GPy1KchkxTFwlkws2GjdoG/loCAD1joAzqspUjA4CWfVNWQIDAQABo1MwUTAdBgNVHQ4EFgQUB8AUY1cAATBI3ThfHfV3GhWKU94wHwYDVR0jBBgwFoAUB8AUY1cAATBI3ThfHfV3GhWKU94wDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAKO2sI+73qtTQoi+YF6HU1r/Sl/FCcTJTUvKzhPgan/GBVmqta+1FAsO/yWNowP37f/AaBZxvh6cqs5S0r1GU3/9Ixf+NdMGACTUEnYmgAmDvlpMqKuFX/0/G55cywVpDy7wRIBXQjumdy8pTEpRakzyH/h/n76p1Olcv192bWr8T9P38+jbBtMzHN/2nQkJ/eiYuEVtFCsQuprNHZPZO9JeVaHNnFjyL0gGjifqDfTHy97DTlGOOdld1QGykvB6M/6tblksxMrs0VokG0/EgMShL2K3h9XqPRsrQmPaCwnHhxeEJ8E7rgmu4XnHaOJjKoZJ2OyIbrO8o4jOMaeinYA==
+          </X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </KeyDescriptor>
+    <AssertionConsumerService index="1"
+      Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+      Location="http://localhost:10000/callback"/>
+  </SPSSODescriptor>
+</EntityDescriptor>

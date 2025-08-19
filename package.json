@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate-metadata": "node generate-metadata.js",
+    "start:idp": "node idp.js",
+    "start:sp": "node server.js",
+    "start:sp2": "node multi-sp-example.js",
+    "setup:multi-sp": "node setup-multi-sp.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +18,7 @@
     "@xmldom/xmldom": "^0.9.8",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "jsonwebtoken": "^9.0.2",

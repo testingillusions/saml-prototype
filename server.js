@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const fs = require('fs');
 const express = require('express');
 const { ServiceProvider, IdentityProvider } = require('samlify');
@@ -7,9 +8,11 @@ const bodyParser = require('body-parser');
 const xmldom = require('@xmldom/xmldom');
 const xpath = require('xpath');
 
-const PORT = 4000;
+const PORT = process.env.SP_PORT || 4000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const IDP_URL = 'http://localhost:7000';
+const SP_BASE_URL = process.env.SP_BASE_URL || `http://localhost:${PORT}`;
+const SP_CALLBACK_URL = process.env.SP_CALLBACK_URL || `${SP_BASE_URL}/callback`;
+const IDP_BASE_URL = process.env.IDP_BASE_URL || 'http://localhost:7000';
 
 // Add validator to prevent validation errors
 ServiceProvider.prototype.validateLoginResponse = function() { return Promise.resolve(); };
@@ -22,10 +25,10 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 // Configure SP
 const sp = ServiceProvider({
-  metadata: fs.readFileSync('./sp-metadata.xml', 'utf-8'),
-  privateKey: fs.readFileSync('./certs/sp-private-key.pem', 'utf-8'),
-  cert: fs.readFileSync('./certs/sp-public-cert.pem', 'utf-8'),
-  assertionConsumerServiceUrl: 'http://localhost:4000/callback',
+  metadata: fs.readFileSync(process.env.SP_METADATA_PATH || './sp-metadata.xml', 'utf-8'),
+  privateKey: fs.readFileSync(process.env.SP_PRIVATE_KEY_PATH || './certs/sp-private-key.pem', 'utf-8'),
+  cert: fs.readFileSync(process.env.SP_PUBLIC_CERT_PATH || './certs/sp-public-cert.pem', 'utf-8'),
+  assertionConsumerServiceUrl: SP_CALLBACK_URL,
   wantMessageSigned: false,
   authnRequestsSigned: false,
   wantAssertionsSigned: false
@@ -33,7 +36,7 @@ const sp = ServiceProvider({
 
 // Configure IdP from metadata
 const idp = IdentityProvider({
-  metadata: fs.readFileSync('./idp-metadata.xml', 'utf-8'),
+  metadata: fs.readFileSync(process.env.IDP_METADATA_PATH || './idp-metadata.xml', 'utf-8'),
   isAssertionEncrypted: false
 });
 
@@ -111,6 +114,8 @@ app.post('/callback', async (req, res) => {
       const emailAttr = select('//saml:Attribute[@Name="email"]/saml:AttributeValue/text()', doc)[0]?.nodeValue;
       const firstName = select('//saml:Attribute[@Name="firstName"]/saml:AttributeValue/text()', doc)[0]?.nodeValue;
       const lastName = select('//saml:Attribute[@Name="lastName"]/saml:AttributeValue/text()', doc)[0]?.nodeValue;
+      const displayName = select('//saml:Attribute[@Name="displayName"]/saml:AttributeValue/text()', doc)[0]?.nodeValue;
+      const roles = select('//saml:Attribute[@Name="roles"]/saml:AttributeValue/text()', doc)[0]?.nodeValue;
       
       // Create a user data object with manually extracted info
       const userData = {
@@ -118,7 +123,9 @@ app.post('/callback', async (req, res) => {
         attributes: {
           email: emailAttr || '',
           firstName: firstName || '',
-          lastName: lastName || ''
+          lastName: lastName || '',
+          displayName: displayName || '',
+          role: roles || 'user'
         }
       };
       
