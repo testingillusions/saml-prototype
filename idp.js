@@ -484,6 +484,9 @@ app.post('/login', async (req, res) => {
       <saml:Attribute Name="displayName">
         <saml:AttributeValue xsi:type="xs:string">${userProfile.firstName} ${userProfile.lastName}</saml:AttributeValue>
       </saml:Attribute>
+      <saml:Attribute Name="roles">
+        <saml:AttributeValue xsi:type="xs:string">${userProfile.attributes.role}</saml:AttributeValue>
+      </saml:Attribute>
     </saml:AttributeStatement>
   </saml:Assertion>
 </samlp:Response>
